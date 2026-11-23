@@ -1,7 +1,7 @@
 {
   "name": "cordova-datadog-rum",
   "displayName": "DatadogRum OutSystems Cordova Plugin",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "www/DatadogRum.js",
   "scripts": {
     "test": "node -e \"require('fs').readFileSync('www/DatadogRum.js', 'utf8'); console.log('Syntax check OK');\""
@@ -27,7 +27,7 @@
   },
   "engines": {
     "cordovaDependencies": {
-      "1.0.0": {
+      "1.1.0": {
         "cordova": ">=12.0.0",
         "cordova-android": ">=13.0.0",
         "cordova-ios": ">=7.1.0"

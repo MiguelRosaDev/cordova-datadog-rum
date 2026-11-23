@@ -39,7 +39,9 @@ class DatadogRum : CordovaPlugin() {
         private const val DEFAULT_TELEMETRY_SAMPLE_RATE = 20f
         private const val DEFAULT_LONG_TASK_THRESHOLD_MS = 100L
         private const val NOT_INITIALIZED_ERROR =
-            "Datadog RUM SDK is not initialized. Call initialize() first or enable DATADOG_AUTO_INITIALIZE."
+            "Datadog RUM SDK is not initialized. Configure DATADOG_CLIENT_TOKEN and " +
+                "DATADOG_ANDROID_APPLICATION_ID (or DATADOG_APPLICATION_ID) in Extensibility Configurations, " +
+                "or call initialize() at runtime."
     }
 
     private data class InitOptions(
@@ -68,16 +70,22 @@ class DatadogRum : CordovaPlugin() {
         super.pluginInitialize()
         Log.d(TAG, "Plugin loaded")
 
-        val autoInitialize = preferences.getBoolean("DatadogAutoInitialize", false)
+        val autoInitialize = preferences.getBoolean("DatadogAutoInitialize", true)
         if (!autoInitialize) {
             Log.d(TAG, "Auto-initialize disabled; waiting for JS initialize() call")
             return
         }
 
-        val clientToken = cleanPreference("DatadogClientToken")
-        val applicationId = cleanPreference("DatadogApplicationId")
+        val clientToken = cleanPreference("DatadogAndroidClientToken")
+            .ifEmpty { cleanPreference("DatadogClientToken") }
+        val applicationId = cleanPreference("DatadogAndroidApplicationId")
+            .ifEmpty { cleanPreference("DatadogApplicationId") }
         if (clientToken.isEmpty() || applicationId.isEmpty()) {
-            Log.w(TAG, "Auto-initialize enabled but clientToken or applicationId is missing")
+            Log.w(
+                TAG,
+                "Auto-initialize skipped: missing credentials (set DATADOG_CLIENT_TOKEN and " +
+                    "DATADOG_ANDROID_APPLICATION_ID / DATADOG_APPLICATION_ID in Extensibility Configurations)"
+            )
             return
         }
 

@@ -2,7 +2,7 @@
 <plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
     xmlns:android="http://schemas.android.com/apk/res/android"
     id="cordova-datadog-rum"
-    version="1.0.0">
+    version="1.1.0">
 
     <name>DatadogRum</name>
     <description>Native Cordova plugin integrating Datadog Real User Monitoring (RUM) for OutSystems 11 (MABS 12 &amp; MABS 13) using Kotlin (Android) and Swift (iOS).</description>
@@ -18,13 +18,23 @@
     </engines>
 
     <!--
-      Optional Extensibility Configuration variables for native auto-initialization at app startup.
-      Leave DATADOG_AUTO_INITIALIZE="false" (default) when initializing at runtime from OutSystems
-      OnApplicationReady via cordova.plugins.custom.DatadogRum.initialize(config, onSuccess, onError).
+      Extensibility Configuration variables for automatic native initialization at app startup
+      (enabled by default via DATADOG_AUTO_INITIALIZE="true" and onload="true").
+
+      Pass either shared credentials (DATADOG_CLIENT_TOKEN + DATADOG_APPLICATION_ID) or
+      platform-specific overrides (DATADOG_ANDROID_APPLICATION_ID / DATADOG_IOS_APPLICATION_ID
+      and DATADOG_ANDROID_CLIENT_TOKEN / DATADOG_IOS_CLIENT_TOKEN).
+
+      Set DATADOG_AUTO_INITIALIZE="false" only if you prefer initializing manually from JS
+      via cordova.plugins.custom.DatadogRum.initialize(config, onSuccess, onError).
     -->
-    <preference name="DATADOG_AUTO_INITIALIZE" default="false" />
+    <preference name="DATADOG_AUTO_INITIALIZE" default="true" />
     <preference name="DATADOG_CLIENT_TOKEN" default="" />
+    <preference name="DATADOG_ANDROID_CLIENT_TOKEN" default="" />
+    <preference name="DATADOG_IOS_CLIENT_TOKEN" default="" />
     <preference name="DATADOG_APPLICATION_ID" default="" />
+    <preference name="DATADOG_ANDROID_APPLICATION_ID" default="" />
+    <preference name="DATADOG_IOS_APPLICATION_ID" default="" />
     <preference name="DATADOG_ENV" default="production" />
     <preference name="DATADOG_SITE" default="US1" />
     <preference name="DATADOG_SERVICE" default="" />
@@ -56,10 +66,12 @@
             <preference name="GradlePluginKotlinCodeStyle" value="official" />
             <preference name="GradlePluginKotlinVersion" value="1.9.24" />
 
-            <!-- Propagate optional auto-initialization preferences to CordovaPreferences -->
+            <!-- Propagate native auto-initialization preferences to CordovaPreferences -->
             <preference name="DatadogAutoInitialize" value="$DATADOG_AUTO_INITIALIZE" />
             <preference name="DatadogClientToken" value="$DATADOG_CLIENT_TOKEN" />
+            <preference name="DatadogAndroidClientToken" value="$DATADOG_ANDROID_CLIENT_TOKEN" />
             <preference name="DatadogApplicationId" value="$DATADOG_APPLICATION_ID" />
+            <preference name="DatadogAndroidApplicationId" value="$DATADOG_ANDROID_APPLICATION_ID" />
             <preference name="DatadogEnv" value="$DATADOG_ENV" />
             <preference name="DatadogSite" value="$DATADOG_SITE" />
             <preference name="DatadogService" value="$DATADOG_SERVICE" />
@@ -98,10 +110,12 @@
     <!-- ==================== iOS (Swift — MABS 12 CocoaPods & MABS 13 SPM) ==================== -->
     <platform name="ios" package="swift">
         <config-file target="config.xml" parent="/*">
-            <!-- Propagate optional auto-initialization preferences to CDVPlugin settings -->
+            <!-- Propagate native auto-initialization preferences to CDVPlugin settings -->
             <preference name="DatadogAutoInitialize" value="$DATADOG_AUTO_INITIALIZE" />
             <preference name="DatadogClientToken" value="$DATADOG_CLIENT_TOKEN" />
+            <preference name="DatadogIosClientToken" value="$DATADOG_IOS_CLIENT_TOKEN" />
             <preference name="DatadogApplicationId" value="$DATADOG_APPLICATION_ID" />
+            <preference name="DatadogIosApplicationId" value="$DATADOG_IOS_APPLICATION_ID" />
             <preference name="DatadogEnv" value="$DATADOG_ENV" />
             <preference name="DatadogSite" value="$DATADOG_SITE" />
             <preference name="DatadogService" value="$DATADOG_SERVICE" />

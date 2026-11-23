@@ -29,140 +29,99 @@ cordova-datadog-rum/
 
 ---
 
+## Required Datadog Credentials
+
+Datadog Mobile RUM does **not** use a `devKey` or a private Datadog API Key (never put a Datadog API Key in a mobile app). Instead, generate the following public client-side identifiers in Datadog under **Digital Experience → Real User Monitoring → New Application**:
+
+| Credential | Required | Description |
+| :--- | :--- | :--- |
+| **Client Token** | Yes | Public client-side ingestion token (equivalent to a mobile `devKey`; write-only for telemetry). Can be shared (`DATADOG_CLIENT_TOKEN`) or split per platform (`DATADOG_ANDROID_CLIENT_TOKEN` / `DATADOG_IOS_CLIENT_TOKEN`). |
+| **RUM Application ID** | Yes | UUID of your Mobile RUM application in Datadog. Typically you create one Android RUM app (`DATADOG_ANDROID_APPLICATION_ID`) and one iOS RUM app (`DATADOG_IOS_APPLICATION_ID`). |
+| **Environment (`env`)** | Yes | Environment tag sent on every event (e.g., `dev`, `qa`, `staging`, `production`). Default: `production`. |
+| **Site (`site`)** | Recommended | Datadog region where your organization is hosted (`US1`, `US3`, `US5`, `EU1`, `AP1`, `AP2`, `UK1`, `US1_FED`, `US2_FED`). Default: `US1` — set `EU1` if your account is on `app.datadoghq.eu`. |
+
+---
+
 ## How Plugin Initialization Works
 
 Datadog's mobile SDK documentation recommends initializing the SDK as early as possible in the application lifecycle (`Application.onCreate()` on Android and `AppDelegate.application(_:didFinishLaunchingWithOptions:)` on iOS).
 
-In **OutSystems 11 / Cordova (MABS)**, overriding `android:name` on `<application>` or replacing `AppDelegate` frequently conflicts with MABS itself and other native plugins (such as Firebase or Salesforce Marketing Cloud). In addition, enterprise OutSystems factories deploy across **DEV / QA / PRD** via LifeTime and often retrieve environment configuration or GDPR consent dynamically at runtime.
+In **OutSystems 11 / Cordova (MABS)**, overriding `android:name` on `<application>` or replacing `AppDelegate` frequently conflicts with MABS itself and other native plugins (such as Firebase or Salesforce Marketing Cloud). To boot cleanly and early without MABS conflicts, this plugin declares `<param name="onload" value="true" />` on both Android and iOS so **native auto-initialization runs automatically in `pluginInitialize()` before `deviceready` and before OutSystems `OnApplicationReady`**.
 
-To cover both enterprise and startup-first use cases cleanly and without MABS conflicts, this plugin supports **two validated initialization modes**:
+### Default Mode: Native Auto-Initialization via Extensibility Configurations *(Enabled by Default)*
 
-### Comparison of Initialization Modes
+`DATADOG_AUTO_INITIALIZE` defaults to `"true"`. Simply configure your Datadog credentials in your OutSystems Wrapper module's **Extensibility Configurations** and the plugin initializes Datadog Core + RUM automatically at native app startup — no JavaScript `initialize()` call is required.
 
-| Aspect | Mode 1: Runtime JS `initialize()` *(Recommended for OutSystems)* | Mode 2: Native Auto-Initialize (`DATADOG_AUTO_INITIALIZE="true"`) |
-| :--- | :--- | :--- |
-| **When it runs** | Inside OutSystems `OnApplicationReady` client action (after `deviceready`). | Inside native `pluginInitialize()` via `<param name="onload" value="true" />` (before `deviceready` and before `OnApplicationReady`). |
-| **Where config lives** | OutSystems Server Action / Site Properties / Configuration Entity per LifeTime environment. | Build-time Extensibility Configurations (`variables` or `preferences.global`). |
-| **Change env / kill-switch** | Instant per environment without a new mobile build. | Requires updating Extensibility Configurations and generating a new MABS build. |
-| **GDPR Consent flow** | Pass `trackingConsent: "pending"` or initialize only after consent. | Set `DATADOG_TRACKING_CONSENT="pending"`, then call `setTrackingConsent("granted" \| "not_granted")` from OutSystems. |
-| **Early native lifecycle** | Starts once the OutSystems runtime loads. | Captures native startup and WebView setup earlier. |
-
-> **Important OutSystems / Cordova Detail (`trackViews: false` by default):**
-> An OutSystems mobile app renders all screens inside a **single** native WebView (`MainActivity` on Android, `CDVViewController` on iOS). On Android, Datadog's default `ActivityViewTrackingStrategy` would record only a single view named `MainActivity` for the entire app session.
-> Therefore, this plugin defaults to `trackViews: false` (`useViewTrackingStrategy(null)` on Android, `uiKitViewsPredicate = nil` on iOS) so your OutSystems screens can report accurate screen names via `startView()` / `stopView()` (or via `WebViewTracking` with the Browser RUM SDK). Set `trackViews: true` only if your app presents multiple native screens/Activities.
-
-> **Idempotency:**
-> Calling `initialize()` when the SDK is already initialized (for example, if auto-initialization already ran or `OnApplicationReady` re-executes) is safe and returns `{ initialized: true, alreadyInitialized: true, webViewTrackingEnabled: <boolean> }` without re-initializing or crashing.
-
-> **Datadog Credentials Reminder:**
-> In Datadog (`Digital Experience > Real User Monitoring > New Application`), you create separate **Android** and **iOS** Mobile RUM applications (or obtain platform-specific `applicationId`s with a RUM `clientToken`). When using **Mode 1**, pass the platform-appropriate `applicationId` (check `GetOperatingSystem()` in OutSystems) or configure per-platform preferences in **Mode 2**.
-
----
-
-### Mode 1: Runtime Initialization from OutSystems `OnApplicationReady` *(Recommended)*
-
-1. Keep `DATADOG_AUTO_INITIALIZE` at its default (`"false"`) in Extensibility Configurations.
-2. Fetch your per-environment `ClientToken`, `ApplicationId` (Android vs iOS), `Env`, `Site`, and `SessionSampleRate` from a Server Action (or local cached configuration fetched once at startup — never hardcode secrets in client literals).
-3. Call `cordova.plugins.custom.DatadogRum.initialize(config, onSuccess, onError)` in OutSystems **`OnApplicationReady`**.
-
-```javascript
-cordova.plugins.custom.DatadogRum.initialize(
-    {
-        clientToken: '<DATADOG_CLIENT_TOKEN>',
-        applicationId: '<DATADOG_RUM_APPLICATION_ID>',
-        env: 'production',
-        site: 'EU1',                    // US1 | US3 | US5 | EU1 | AP1 | AP2 | UK1 | US1_FED | US2_FED
-        service: 'my-outsystems-app',   // Optional (defaults to package/bundle ID)
-        version: '1.0.0',               // Optional (defaults to native app version)
-        trackingConsent: 'pending',     // 'granted' | 'not_granted' | 'pending'
-        sessionSampleRate: 100,         // 0..100
-        telemetrySampleRate: 20,        // 0..100
-        trackViews: false,              // Keep false for OutSystems WebView screens
-        trackUserInteractions: false,   // Keep false unless tracking native UI widgets
-        trackBackgroundEvents: false,
-        trackFrustrations: true,
-        longTaskThresholdMs: 100,       // <= 0 disables long task tracking
-        trackCrashReports: true,        // Android Core crash reports
-        verbosity: 'none'               // 'debug' | 'warn' | 'error' | 'critical' | 'none'
-    },
-    function (result) {
-        console.log('Datadog RUM initialized:', result);
-    },
-    function (error) {
-        console.error('Datadog RUM init error:', error);
-    }
-);
-```
-
-When the user accepts or declines GDPR tracking consent:
-
-```javascript
-// User accepted analytics/monitoring
-cordova.plugins.custom.DatadogRum.setTrackingConsent('granted');
-
-// User declined (deletes buffered pending events and stops collection)
-cordova.plugins.custom.DatadogRum.setTrackingConsent('not_granted');
-```
-
----
-
-### Mode 2: Native Auto-Initialization at App Startup (Extensibility Configurations)
-
-If you want Datadog RUM initialized natively before `deviceready` (inside `pluginInitialize()` via `<param name="onload" value="true" />`), pass the variables in your OutSystems Wrapper module's **Extensibility Configurations**:
+#### Standard Android + iOS Setup (Separate RUM Application IDs, Shared Client Token)
 
 ```json
 {
     "plugin": {
-        "url": "https://github.com/MiguelRosaDev/cordova-datadog-rum.git#v1.0.0",
+        "url": "https://github.com/MiguelRosaDev/cordova-datadog-rum.git#v1.1.0",
         "variables": [
-            { "name": "DATADOG_AUTO_INITIALIZE", "value": "true" },
             { "name": "DATADOG_CLIENT_TOKEN", "value": "<DATADOG_CLIENT_TOKEN>" },
-            { "name": "DATADOG_APPLICATION_ID", "value": "<DATADOG_RUM_APPLICATION_ID>" },
+            { "name": "DATADOG_ANDROID_APPLICATION_ID", "value": "<ANDROID_RUM_APP_ID>" },
+            { "name": "DATADOG_IOS_APPLICATION_ID", "value": "<IOS_RUM_APP_ID>" },
             { "name": "DATADOG_ENV", "value": "production" },
             { "name": "DATADOG_SITE", "value": "EU1" },
             { "name": "DATADOG_SERVICE", "value": "my-outsystems-app" },
-            { "name": "DATADOG_TRACKING_CONSENT", "value": "pending" },
+            { "name": "DATADOG_TRACKING_CONSENT", "value": "granted" },
             { "name": "DATADOG_SESSION_SAMPLE_RATE", "value": "100" }
         ]
     }
 }
 ```
 
-> **Different Application IDs for Android and iOS in Mode 2:**
-> If your Android and iOS Datadog RUM apps use different `applicationId` values, you can override `DatadogApplicationId` per platform using the `preferences.android` and `preferences.ios` sections in Extensibility Configurations:
-> ```json
-> {
->     "plugin": {
->         "url": "https://github.com/MiguelRosaDev/cordova-datadog-rum.git#v1.0.0",
->         "variables": [
->             { "name": "DATADOG_AUTO_INITIALIZE", "value": "true" },
->             { "name": "DATADOG_CLIENT_TOKEN", "value": "<DATADOG_CLIENT_TOKEN>" },
->             { "name": "DATADOG_ENV", "value": "production" },
->             { "name": "DATADOG_SITE", "value": "EU1" }
->         ]
->     },
->     "preferences": {
->         "android": [
->             { "name": "DatadogApplicationId", "value": "<ANDROID_RUM_APP_ID>" }
->         ],
->         "ios": [
->             { "name": "DatadogApplicationId", "value": "<IOS_RUM_APP_ID>" }
->         ]
->     }
-> }
+#### Separate Client Tokens for Android and iOS
+
+If your Android and iOS RUM applications also have distinct client tokens, pass `DATADOG_ANDROID_CLIENT_TOKEN` and `DATADOG_IOS_CLIENT_TOKEN` (platform-specific variables always take precedence over the generic `DATADOG_CLIENT_TOKEN` / `DATADOG_APPLICATION_ID`):
+
+```json
+{
+    "plugin": {
+        "url": "https://github.com/MiguelRosaDev/cordova-datadog-rum.git#v1.1.0",
+        "variables": [
+            { "name": "DATADOG_ANDROID_CLIENT_TOKEN", "value": "<ANDROID_CLIENT_TOKEN>" },
+            { "name": "DATADOG_ANDROID_APPLICATION_ID", "value": "<ANDROID_RUM_APP_ID>" },
+            { "name": "DATADOG_IOS_CLIENT_TOKEN", "value": "<IOS_CLIENT_TOKEN>" },
+            { "name": "DATADOG_IOS_APPLICATION_ID", "value": "<IOS_RUM_APP_ID>" },
+            { "name": "DATADOG_ENV", "value": "production" },
+            { "name": "DATADOG_SITE", "value": "EU1" },
+            { "name": "DATADOG_TRACKING_CONSENT", "value": "pending" }
+        ]
+    }
+}
+```
+
+> **GDPR Consent Flow with Auto-Initialization:**
+> Set `DATADOG_TRACKING_CONSENT` to `"pending"` so Datadog buffers startup events locally without uploading them. Once the user accepts or declines consent in your OutSystems app, call:
+> ```javascript
+> // User accepted monitoring -> flushes buffered events & continues tracking
+> cordova.plugins.custom.DatadogRum.setTrackingConsent('granted');
+>
+> // User declined -> deletes buffered events & stops collection
+> cordova.plugins.custom.DatadogRum.setTrackingConsent('not_granted');
 > ```
+
+> **Important OutSystems / Cordova Detail (`DATADOG_TRACK_VIEWS = "false"` by default):**
+> An OutSystems mobile app renders all screens inside a **single** native WebView (`MainActivity` on Android, `CDVViewController` on iOS). On Android, Datadog's default `ActivityViewTrackingStrategy` would record only a single view named `MainActivity` for the entire app session.
+> Therefore, this plugin defaults to `trackViews: false` (`useViewTrackingStrategy(null)` on Android, `uiKitViewsPredicate = nil` on iOS) so your OutSystems screens report accurate screen names via `startView()` / `stopView()` (or via `WebViewTracking` with the Browser RUM SDK). Set `DATADOG_TRACK_VIEWS="true"` only if your app presents multiple native screens/Activities.
 
 #### Supported Extensibility Variables (`plugin.xml`)
 
 | Variable | `config.xml` Preference | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `DATADOG_AUTO_INITIALIZE` | `DatadogAutoInitialize` | `false` | Set `"true"` to initialize natively in `pluginInitialize()`. |
-| `DATADOG_CLIENT_TOKEN` | `DatadogClientToken` | `""` | Datadog Client Token (required for auto-init). |
-| `DATADOG_APPLICATION_ID` | `DatadogApplicationId` | `""` | Datadog Mobile RUM Application ID (required for auto-init). |
+| `DATADOG_AUTO_INITIALIZE` | `DatadogAutoInitialize` | `true` | Automatically initializes Datadog RUM in native `pluginInitialize()`. Set `"false"` to initialize manually from JS. |
+| `DATADOG_CLIENT_TOKEN` | `DatadogClientToken` | `""` | Shared Datadog Client Token (used if platform-specific token is empty). |
+| `DATADOG_ANDROID_CLIENT_TOKEN` | `DatadogAndroidClientToken` | `""` | Optional Android-only Client Token override. |
+| `DATADOG_IOS_CLIENT_TOKEN` | `DatadogIosClientToken` | `""` | Optional iOS-only Client Token override. |
+| `DATADOG_APPLICATION_ID` | `DatadogApplicationId` | `""` | Shared Datadog RUM Application ID (used if platform-specific ID is empty). |
+| `DATADOG_ANDROID_APPLICATION_ID` | `DatadogAndroidApplicationId` | `""` | Android RUM Application ID (takes precedence over `DATADOG_APPLICATION_ID` on Android). |
+| `DATADOG_IOS_APPLICATION_ID` | `DatadogIosApplicationId` | `""` | iOS RUM Application ID (takes precedence over `DATADOG_APPLICATION_ID` on iOS). |
 | `DATADOG_ENV` | `DatadogEnv` | `production` | Datadog environment tag (`dev`, `qa`, `staging`, `production`). |
 | `DATADOG_SITE` | `DatadogSite` | `US1` | Datadog site (`US1`, `US3`, `US5`, `EU1`, `AP1`, `AP2`, `UK1`, `US1_FED`, `US2_FED`). |
-| `DATADOG_SERVICE` | `DatadogService` | `""` | Optional service name override. |
-| `DATADOG_VERSION` | `DatadogVersion` | `""` | Optional app version override. |
+| `DATADOG_SERVICE` | `DatadogService` | `""` | Optional service name override (defaults to bundle/package ID). |
+| `DATADOG_VERSION` | `DatadogVersion` | `""` | Optional app version override (defaults to native app version). |
 | `DATADOG_TRACKING_CONSENT` | `DatadogTrackingConsent` | `granted` | Initial GDPR consent (`granted`, `not_granted`, `pending`). |
 | `DATADOG_SESSION_SAMPLE_RATE` | `DatadogSessionSampleRate` | `100` | Session sample rate (`0`–`100`). |
 | `DATADOG_TELEMETRY_SAMPLE_RATE` | `DatadogTelemetrySampleRate` | `20` | Internal SDK telemetry sample rate (`0`–`100`). |
@@ -176,18 +135,68 @@ If you want Datadog RUM initialized natively before `deviceready` (inside `plugi
 
 ---
 
+### Alternative Mode: Manual Runtime Initialization from OutSystems `OnApplicationReady`
+
+If your factory prefers fetching credentials dynamically per LifeTime environment (DEV/QA/PRD) from a Server Action / Site Properties instead of baking them into Extensibility Configurations, disable auto-init:
+
+```json
+{
+    "plugin": {
+        "url": "https://github.com/MiguelRosaDev/cordova-datadog-rum.git#v1.1.0",
+        "variables": [
+            { "name": "DATADOG_AUTO_INITIALIZE", "value": "false" }
+        ]
+    }
+}
+```
+
+Then call `initialize()` once inside OutSystems **`OnApplicationReady`**:
+
+```javascript
+cordova.plugins.custom.DatadogRum.initialize(
+    {
+        clientToken: '<DATADOG_CLIENT_TOKEN>',
+        applicationId: '<DATADOG_RUM_APPLICATION_ID>',
+        env: 'production',
+        site: 'EU1',
+        service: 'my-outsystems-app',
+        trackingConsent: 'pending',
+        sessionSampleRate: 100,
+        telemetrySampleRate: 20,
+        trackViews: false,
+        trackUserInteractions: false,
+        trackBackgroundEvents: false,
+        trackFrustrations: true,
+        longTaskThresholdMs: 100,
+        trackCrashReports: true,
+        verbosity: 'none'
+    },
+    function (result) {
+        console.log('Datadog RUM initialized:', result);
+    },
+    function (error) {
+        console.error('Datadog RUM init error:', error);
+    }
+);
+```
+
+> **Idempotency:**
+> Calling `initialize()` when the SDK is already initialized (for example, after native auto-initialization already ran) is completely safe and returns `{ initialized: true, alreadyInitialized: true, webViewTrackingEnabled: <boolean> }` without re-initializing or crashing.
+
+---
+
 ## Hybrid WebView Tracking (Connecting Mobile RUM with Browser RUM)
 
 Because OutSystems Mobile applications run inside a native WebView (`WKWebView` on iOS, Android `WebView` on Android), there are two ways to instrument your app with Datadog RUM:
 
-1. **Pure Native Mobile RUM (using only this Cordova plugin)** — Recommended for most OutSystems Mobile apps:
-   - Call `initialize()` once in `OnApplicationReady`.
+1. **Pure Native Mobile RUM (using only this Cordova plugin)** — Simplest and recommended for most OutSystems Mobile apps:
+   - Configure your credentials in Extensibility Configurations (auto-initialized at startup).
    - Call `startView()` / `stopView()` on OutSystems screen navigation (`OnReady` / `OnDestroy`), plus `addAction()`, `addError()`, `startResource()`/`stopResource()`, and `setUser()`.
-   - Zero dependency on the Datadog Browser RUM script; works completely offline and batches uploads natively.
+   - Zero dependency on the Datadog Browser RUM script; works offline and batches uploads natively.
 2. **Unified Mobile + Browser RUM (`WebViewTracking`)** — Use when your WebView or embedded web pages ALSO load the [Datadog Browser RUM SDK](https://docs.datadoghq.com/real_user_monitoring/application_monitoring/browser/) (`@datadog/browser-rum` v4.2.0+):
-   - Pass `webViewAllowedHosts` in `initialize()` (or set `DATADOG_WEBVIEW_ALLOWED_HOSTS`, or call `enableWebViewTracking(allowedHosts)`).
+   - Set `DATADOG_WEBVIEW_ALLOWED_HOSTS` in Extensibility Configurations (e.g. `my-env.outsystemsenterprise.com,*.example.com`) or call `enableWebViewTracking(allowedHosts)` at runtime.
    - This plugin attaches `WebViewTracking.enable(...)` (`dd-sdk-android-webview` on Android / `DatadogWebViewTracking` on iOS) to the Cordova WebView.
-   - Browser RUM views, XHR/Fetch resources, console errors, and user clicks originating from the allowed hosts are forwarded through the native bridge and correlated under the **same `@session.id`** as the native Mobile RUM session.
+   - Browser RUM views, XHR/Fetch resources, console errors, and user clicks originating from the allowed hosts are bridged into the **same `@session.id`** as the native Mobile RUM session.
 
 ```javascript
 cordova.plugins.custom.DatadogRum.enableWebViewTracking(
@@ -202,16 +211,24 @@ cordova.plugins.custom.DatadogRum.enableWebViewTracking(
 
 ## OutSystems 11 Wrapper Integration Guide
 
-Follow the OutSystems wrapper module architecture (dedicated `<Name>_Plugin` module exposing Client Actions with standard `IsSuccess` / `ErrorMessage` outputs, availability checks, browser fallbacks, and guaranteed `$resolve()`):
+Follow the OutSystems wrapper module architecture (dedicated `DatadogRum_Plugin` module exposing Client Actions with standard `IsSuccess` / `ErrorMessage` outputs, availability checks, browser fallbacks, and guaranteed `$resolve()`):
 
 ### 1. Extensibility Configurations (Wrapper Module)
 
-Pin the plugin to an immutable release tag (`#v1.0.0`):
+Pin the plugin to an immutable release tag (`#v1.1.0`) and pass your Datadog credentials:
 
 ```json
 {
     "plugin": {
-        "url": "https://github.com/MiguelRosaDev/cordova-datadog-rum.git#v1.0.0"
+        "url": "https://github.com/MiguelRosaDev/cordova-datadog-rum.git#v1.1.0",
+        "variables": [
+            { "name": "DATADOG_CLIENT_TOKEN", "value": "<DATADOG_CLIENT_TOKEN>" },
+            { "name": "DATADOG_ANDROID_APPLICATION_ID", "value": "<ANDROID_RUM_APP_ID>" },
+            { "name": "DATADOG_IOS_APPLICATION_ID", "value": "<IOS_RUM_APP_ID>" },
+            { "name": "DATADOG_ENV", "value": "production" },
+            { "name": "DATADOG_SITE", "value": "EU1" },
+            { "name": "DATADOG_TRACKING_CONSENT", "value": "granted" }
+        ]
     }
 }
 ```
@@ -234,42 +251,60 @@ $resolve();
 
 Every wrapper Client Action should expose `IsSuccess` (Boolean) and `ErrorMessage` (Text), check plugin availability first, provide a safe desktop/browser fallback, and **always call `$resolve()`** in every branch.
 
-#### `DatadogRum_Initialize` (Call in `OnApplicationReady`)
+#### `DatadogRum_IsInitialized` (Verify Native Auto-Init)
 
-Inputs: `ClientToken`, `ApplicationId`, `Env`, `Site`, `Service`, `TrackingConsent`, `SessionSampleRate`
-Outputs: `IsSuccess`, `AlreadyInitialized`, `ErrorMessage`
+Outputs: `IsSuccess`, `IsInitialized`, `ErrorMessage`
 
 ```javascript
 var plugin = window.cordova && cordova.plugins && cordova.plugins.custom &&
     cordova.plugins.custom.DatadogRum;
 
-if (!plugin || typeof plugin.initialize !== 'function') {
+if (!plugin || typeof plugin.isInitialized !== 'function') {
     $parameters.IsSuccess = false;
-    $parameters.AlreadyInitialized = false;
+    $parameters.IsInitialized = false;
     $parameters.ErrorMessage = 'DatadogRum plugin is not available on this platform.';
     $resolve();
 } else {
-    plugin.initialize(
-        {
-            clientToken: $parameters.ClientToken,
-            applicationId: $parameters.ApplicationId,
-            env: $parameters.Env,
-            site: $parameters.Site || 'EU1',
-            service: $parameters.Service || undefined,
-            trackingConsent: $parameters.TrackingConsent || 'pending',
-            sessionSampleRate: $parameters.SessionSampleRate || 100,
-            trackViews: false,
-            trackUserInteractions: false
-        },
-        function (result) {
+    plugin.isInitialized(
+        function (initialized) {
             $parameters.IsSuccess = true;
-            $parameters.AlreadyInitialized = !!(result && result.alreadyInitialized);
+            $parameters.IsInitialized = !!initialized;
             $parameters.ErrorMessage = '';
             $resolve();
         },
         function (error) {
             $parameters.IsSuccess = false;
-            $parameters.AlreadyInitialized = false;
+            $parameters.IsInitialized = false;
+            $parameters.ErrorMessage = typeof error === 'string' ? error : String(error);
+            $resolve();
+        }
+    );
+}
+```
+
+#### `DatadogRum_SetTrackingConsent` (GDPR Consent Update)
+
+Inputs: `Consent` (`"granted"`, `"not_granted"`, `"pending"`)
+Outputs: `IsSuccess`, `ErrorMessage`
+
+```javascript
+var plugin = window.cordova && cordova.plugins && cordova.plugins.custom &&
+    cordova.plugins.custom.DatadogRum;
+
+if (!plugin || typeof plugin.setTrackingConsent !== 'function') {
+    $parameters.IsSuccess = false;
+    $parameters.ErrorMessage = 'DatadogRum plugin is not available on this platform.';
+    $resolve();
+} else {
+    plugin.setTrackingConsent(
+        $parameters.Consent,
+        function () {
+            $parameters.IsSuccess = true;
+            $parameters.ErrorMessage = '';
+            $resolve();
+        },
+        function (error) {
+            $parameters.IsSuccess = false;
             $parameters.ErrorMessage = typeof error === 'string' ? error : String(error);
             $resolve();
         }
@@ -293,11 +328,7 @@ if (!plugin || typeof plugin.startView !== 'function') {
 } else {
     var attrs = {};
     if ($parameters.AttributesJson) {
-        try {
-            attrs = JSON.parse($parameters.AttributesJson);
-        } catch (e) {
-            attrs = {};
-        }
+        try { attrs = JSON.parse($parameters.AttributesJson); } catch (e) { attrs = {}; }
     }
 
     plugin.startView(
@@ -439,7 +470,7 @@ All methods are exposed under `cordova.plugins.custom.DatadogRum`.
 
 | Method | Signature | Description |
 | :--- | :--- | :--- |
-| `initialize` | `initialize(config, onSuccess, onError)` | Initializes Datadog Core + RUM (and optional WebViewTracking). Resolves with `{ initialized, alreadyInitialized, webViewTrackingEnabled }`. |
+| `initialize` | `initialize(config, onSuccess, onError)` | Initializes Datadog Core + RUM (and optional WebViewTracking). Idempotent; resolves with `{ initialized, alreadyInitialized, webViewTrackingEnabled }`. Only needed when `DATADOG_AUTO_INITIALIZE="false"`. |
 | `isInitialized` | `isInitialized(onSuccess, onError)` | Resolves with `true` or `false`. |
 | `setTrackingConsent` | `setTrackingConsent(consent, onSuccess, onError)` | Updates GDPR consent: `"granted"`, `"not_granted"`, or `"pending"`. |
 | `clearAllData` | `clearAllData(onSuccess, onError)` | Purges all unsent buffered data from local SDK storage. |
@@ -503,7 +534,7 @@ For security and GDPR compliance, native logs never print client tokens, user de
   adb logcat | grep "\[DatadogRum\]"
   ```
 - **iOS** (Xcode Console / Console.app): Filter by `[DatadogRum]`.
-- **Datadog SDK Verbose Diagnostics**: Pass `verbosity: "debug"` in `initialize()` (or `DATADOG_VERBOSITY="debug"`) during non-production troubleshooting to inspect Datadog SDK upload batches and intake responses.
+- **Datadog SDK Verbose Diagnostics**: Set `DATADOG_VERBOSITY="debug"` in Extensibility Configurations during non-production troubleshooting to inspect Datadog SDK upload batches and intake responses.
 
 ### MABS 12 & MABS 13 Compatibility Notes
 

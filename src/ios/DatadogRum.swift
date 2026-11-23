@@ -24,7 +24,9 @@ public class DatadogRum: CDVPlugin {
 
     private let tag = "[DatadogRum]"
     private let notInitializedError =
-        "Datadog RUM SDK is not initialized. Call initialize() first or enable DATADOG_AUTO_INITIALIZE."
+        "Datadog RUM SDK is not initialized. Configure DATADOG_CLIENT_TOKEN and " +
+            "DATADOG_IOS_APPLICATION_ID (or DATADOG_APPLICATION_ID) in Extensibility Configurations, " +
+            "or call initialize() at runtime."
 
     private struct InitOptions {
         let clientToken: String
@@ -50,16 +52,22 @@ public class DatadogRum: CDVPlugin {
         super.pluginInitialize()
         NSLog("%@", "\(tag) Plugin loaded")
 
-        let autoInitialize = boolSetting("datadogautoinitialize", defaultValue: false)
+        let autoInitialize = boolSetting("datadogautoinitialize", defaultValue: true)
         if !autoInitialize {
             NSLog("%@", "\(tag) Auto-initialize disabled; waiting for JS initialize() call")
             return
         }
 
-        let clientToken = cleanSetting("datadogclienttoken")
-        let applicationId = cleanSetting("datadogapplicationid")
+        let iosClientToken = cleanSetting("datadogiosclienttoken")
+        let clientToken = iosClientToken.isEmpty ? cleanSetting("datadogclienttoken") : iosClientToken
+        let iosAppId = cleanSetting("datadogiosapplicationid")
+        let applicationId = iosAppId.isEmpty ? cleanSetting("datadogapplicationid") : iosAppId
         if clientToken.isEmpty || applicationId.isEmpty {
-            NSLog("%@", "\(tag) Auto-initialize enabled but clientToken or applicationId is missing")
+            NSLog(
+                "%@",
+                "\(tag) Auto-initialize skipped: missing credentials (set DATADOG_CLIENT_TOKEN and " +
+                    "DATADOG_IOS_APPLICATION_ID / DATADOG_APPLICATION_ID in Extensibility Configurations)"
+            )
             return
         }
 
