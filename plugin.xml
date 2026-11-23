@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    id="cordova-datadog-rum"
+    version="1.0.0">
+
+    <name>DatadogRum</name>
+    <description>Native Cordova plugin integrating Datadog Real User Monitoring (RUM) for OutSystems 11 (MABS 12 &amp; MABS 13) using Kotlin (Android) and Swift (iOS).</description>
+    <author>Miguel Rosa (MiguelRosaDev)</author>
+    <license>MIT</license>
+    <keywords>cordova,plugin,outsystems,mabs,android,ios,datadog,datadog-rum,rum</keywords>
+    <repo>https://github.com/MiguelRosaDev/cordova-datadog-rum.git</repo>
+
+    <engines>
+        <engine name="cordova" version=">=12.0.0" />
+        <engine name="cordova-android" version=">=13.0.0" />
+        <engine name="cordova-ios" version=">=7.1.0" />
+    </engines>
+
+    <!--
+      Optional Extensibility Configuration variables for native auto-initialization at app startup.
+      Leave DATADOG_AUTO_INITIALIZE="false" (default) when initializing at runtime from OutSystems
+      OnApplicationReady via cordova.plugins.custom.DatadogRum.initialize(config, onSuccess, onError).
+    -->
+    <preference name="DATADOG_AUTO_INITIALIZE" default="false" />
+    <preference name="DATADOG_CLIENT_TOKEN" default="" />
+    <preference name="DATADOG_APPLICATION_ID" default="" />
+    <preference name="DATADOG_ENV" default="production" />
+    <preference name="DATADOG_SITE" default="US1" />
+    <preference name="DATADOG_SERVICE" default="" />
+    <preference name="DATADOG_VERSION" default="" />
+    <preference name="DATADOG_TRACKING_CONSENT" default="granted" />
+    <preference name="DATADOG_SESSION_SAMPLE_RATE" default="100" />
+    <preference name="DATADOG_TELEMETRY_SAMPLE_RATE" default="20" />
+    <preference name="DATADOG_TRACK_VIEWS" default="false" />
+    <preference name="DATADOG_TRACK_USER_INTERACTIONS" default="false" />
+    <preference name="DATADOG_TRACK_BACKGROUND_EVENTS" default="false" />
+    <preference name="DATADOG_TRACK_FRUSTRATIONS" default="true" />
+    <preference name="DATADOG_LONG_TASK_THRESHOLD_MS" default="100" />
+    <preference name="DATADOG_VERBOSITY" default="none" />
+    <preference name="DATADOG_WEBVIEW_ALLOWED_HOSTS" default="" />
+
+    <!--
+      JavaScript interface exposed to the WebView as:
+        cordova.plugins.custom.DatadogRum
+    -->
+    <js-module src="www/DatadogRum.js" name="DatadogRum">
+        <clobbers target="cordova.plugins.custom.DatadogRum" />
+    </js-module>
+
+    <!-- ==================== ANDROID (Kotlin) ==================== -->
+    <platform name="android">
+        <config-file target="res/xml/config.xml" parent="/*">
+            <!-- Enable Kotlin compilation in the generated Cordova Android project -->
+            <preference name="GradlePluginKotlinEnabled" value="true" />
+            <preference name="GradlePluginKotlinCodeStyle" value="official" />
+            <preference name="GradlePluginKotlinVersion" value="1.9.24" />
+
+            <!-- Propagate optional auto-initialization preferences to CordovaPreferences -->
+            <preference name="DatadogAutoInitialize" value="$DATADOG_AUTO_INITIALIZE" />
+            <preference name="DatadogClientToken" value="$DATADOG_CLIENT_TOKEN" />
+            <preference name="DatadogApplicationId" value="$DATADOG_APPLICATION_ID" />
+            <preference name="DatadogEnv" value="$DATADOG_ENV" />
+            <preference name="DatadogSite" value="$DATADOG_SITE" />
+            <preference name="DatadogService" value="$DATADOG_SERVICE" />
+            <preference name="DatadogVersion" value="$DATADOG_VERSION" />
+            <preference name="DatadogTrackingConsent" value="$DATADOG_TRACKING_CONSENT" />
+            <preference name="DatadogSessionSampleRate" value="$DATADOG_SESSION_SAMPLE_RATE" />
+            <preference name="DatadogTelemetrySampleRate" value="$DATADOG_TELEMETRY_SAMPLE_RATE" />
+            <preference name="DatadogTrackViews" value="$DATADOG_TRACK_VIEWS" />
+            <preference name="DatadogTrackUserInteractions" value="$DATADOG_TRACK_USER_INTERACTIONS" />
+            <preference name="DatadogTrackBackgroundEvents" value="$DATADOG_TRACK_BACKGROUND_EVENTS" />
+            <preference name="DatadogTrackFrustrations" value="$DATADOG_TRACK_FRUSTRATIONS" />
+            <preference name="DatadogLongTaskThresholdMs" value="$DATADOG_LONG_TASK_THRESHOLD_MS" />
+            <preference name="DatadogVerbosity" value="$DATADOG_VERBOSITY" />
+            <preference name="DatadogWebViewAllowedHosts" value="$DATADOG_WEBVIEW_ALLOWED_HOSTS" />
+
+            <feature name="DatadogRum">
+                <param name="android-package" value="com.outsystems.plugins.datadogrum.DatadogRum" />
+                <param name="onload" value="true" />
+            </feature>
+        </config-file>
+
+        <config-file target="AndroidManifest.xml" parent="/*">
+            <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+        </config-file>
+
+        <!-- Official Datadog Android SDK (Core is transitively exposed by dd-sdk-android-rum) -->
+        <framework src="com.datadoghq:dd-sdk-android-rum:3.16.0" />
+        <framework src="com.datadoghq:dd-sdk-android-webview:3.16.0" />
+
+        <source-file
+            src="src/android/DatadogRum.kt"
+            target-dir="app/src/main/kotlin/com/outsystems/plugins/datadogrum" />
+    </platform>
+
+    <!-- ==================== iOS (Swift — MABS 12 CocoaPods & MABS 13 SPM) ==================== -->
+    <platform name="ios" package="swift">
+        <config-file target="config.xml" parent="/*">
+            <!-- Propagate optional auto-initialization preferences to CDVPlugin settings -->
+            <preference name="DatadogAutoInitialize" value="$DATADOG_AUTO_INITIALIZE" />
+            <preference name="DatadogClientToken" value="$DATADOG_CLIENT_TOKEN" />
+            <preference name="DatadogApplicationId" value="$DATADOG_APPLICATION_ID" />
+            <preference name="DatadogEnv" value="$DATADOG_ENV" />
+            <preference name="DatadogSite" value="$DATADOG_SITE" />
+            <preference name="DatadogService" value="$DATADOG_SERVICE" />
+            <preference name="DatadogVersion" value="$DATADOG_VERSION" />
+            <preference name="DatadogTrackingConsent" value="$DATADOG_TRACKING_CONSENT" />
+            <preference name="DatadogSessionSampleRate" value="$DATADOG_SESSION_SAMPLE_RATE" />
+            <preference name="DatadogTelemetrySampleRate" value="$DATADOG_TELEMETRY_SAMPLE_RATE" />
+            <preference name="DatadogTrackViews" value="$DATADOG_TRACK_VIEWS" />
+            <preference name="DatadogTrackUserInteractions" value="$DATADOG_TRACK_USER_INTERACTIONS" />
+            <preference name="DatadogTrackBackgroundEvents" value="$DATADOG_TRACK_BACKGROUND_EVENTS" />
+            <preference name="DatadogTrackFrustrations" value="$DATADOG_TRACK_FRUSTRATIONS" />
+            <preference name="DatadogLongTaskThresholdMs" value="$DATADOG_LONG_TASK_THRESHOLD_MS" />
+            <preference name="DatadogVerbosity" value="$DATADOG_VERBOSITY" />
+            <preference name="DatadogWebViewAllowedHosts" value="$DATADOG_WEBVIEW_ALLOWED_HOSTS" />
+
+            <feature name="DatadogRum">
+                <param name="ios-package" value="DatadogRum" />
+                <param name="onload" value="true" />
+            </feature>
+        </config-file>
+
+        <!-- MABS 12 (cordova-ios 7): CocoaPods fallback; ignored on MABS 13 (cordova-ios 8 / SPM) -->
+        <podspec>
+            <config>
+                <source url="https://cdn.cocoapods.org/" />
+            </config>
+            <pods use_frameworks="true">
+                <pod name="DatadogCore" spec="~> 3.22.0" nospm="true" />
+                <pod name="DatadogRUM" spec="~> 3.22.0" nospm="true" />
+                <pod name="DatadogWebViewTracking" spec="~> 3.22.0" nospm="true" />
+            </pods>
+        </podspec>
+
+        <source-file src="src/ios/DatadogRum.swift" />
+    </platform>
+</plugin>

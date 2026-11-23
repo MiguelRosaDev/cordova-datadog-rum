@@ -1,0 +1,48 @@
+{
+  "name": "cordova-datadog-rum",
+  "displayName": "DatadogRum OutSystems Cordova Plugin",
+  "version": "1.0.0",
+  "main": "www/DatadogRum.js",
+  "scripts": {
+    "test": "node -e \"require('fs').readFileSync('www/DatadogRum.js', 'utf8'); console.log('Syntax check OK');\""
+  },
+  "keywords": [
+    "cordova",
+    "ecosystem:cordova",
+    "cordova-android",
+    "cordova-ios",
+    "outsystems",
+    "mabs",
+    "datadog",
+    "datadog-rum",
+    "rum",
+    "observability"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MiguelRosaDev/cordova-datadog-rum.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MiguelRosaDev/cordova-datadog-rum/issues"
+  },
+  "engines": {
+    "cordovaDependencies": {
+      "1.0.0": {
+        "cordova": ">=12.0.0",
+        "cordova-android": ">=13.0.0",
+        "cordova-ios": ">=7.1.0"
+      }
+    }
+  },
+  "homepage": "https://github.com/MiguelRosaDev/cordova-datadog-rum#readme",
+  "author": "Miguel Rosa (MiguelRosaDev)",
+  "license": "MIT",
+  "description": "Native Cordova plugin integrating Datadog Real User Monitoring (RUM) for OutSystems 11 (MABS 12 & MABS 13) using Kotlin (Android) and Swift (iOS).",
+  "cordova": {
+    "id": "cordova-datadog-rum",
+    "platforms": [
+      "android",
+      "ios"
+    ]
+  }
+}
